@@ -3,21 +3,80 @@ const mapCanvas  = document.getElementById('mapCanvas');
 
 var eyeSprite = document.getElementById('eyeSprite');
 
+var wallColor = {r: 255, g: 255, b: 255};
+
 const [ gameContext, mapContext ] = [ gameCanvas.getContext('2d'), mapCanvas.getContext('2d') ];
 
-const FOV               = inRadians(60);
+var FOV               = inRadians(60);
 const NUMBER_OF_RAYS    = mapCanvas.width;
 
+var TRIP_MODE = {enabled: false, stage: 0, direction: 0};
+
+for (input of document.getElementsByTagName('input')) {
+   input.onchange = (e) => {
+        FOV = inRadians(parseFloat(document.getElementById('FOV').value));
+        TRIP_MODE.enabled = document.getElementById('TRIP_MODE').value == '1' ? true : false;
+        wallColor.r = document.getElementById('R').value;
+        wallColor.g = document.getElementById('G').value;
+        wallColor.b = document.getElementById('B').value;
+   }
+}
+
+
+
+
 const KEYS = {
-    UP:    119,
-    DOWN:  115,
-    CAMERA_LEFT:  113,
-    CAMERA_RIGHT: 101,
-    LEFT: 97,
-    RIGHT: 100
+    UP:    87,
+    DOWN:  83,
+    CAMERA_LEFT:  37,
+    CAMERA_RIGHT: 39,
+    CAMERA_UP: 38,
+    CAMERA_DOWN: 40
 }
 
 const SPRITE_TRANSLATE = [0, 0, eyeSprite, eyeSprite];
+
+
+
+function tripModeAnimator() {
+    if (TRIP_MODE.direction == 0) {
+        if (TRIP_MODE.stage == 0) {
+            wallColor.r--;
+            if(wallColor.r == 0) {
+                TRIP_MODE.stage = 1
+            }
+        } else if (TRIP_MODE.stage == 1) {
+            wallColor.g--;
+            if(wallColor.g == 0) {
+                TRIP_MODE.stage =2
+            }
+        } else {
+            wallColor.b--;
+            if(wallColor.b == 0) {
+                TRIP_MODE.stage = 0
+                TRIP_MODE.direction = 1;
+            }
+        }
+    } else {
+        if (TRIP_MODE.stage == 0) {
+            wallColor.r++;
+            if(wallColor.r == 255) {
+                TRIP_MODE.stage = 1
+            }
+        } else if (TRIP_MODE.stage == 1) {
+            wallColor.g++;
+            if(wallColor.g == 255) {
+                TRIP_MODE.stage =2
+            }
+        } else {
+            wallColor.b++;
+            if(wallColor.b == 255) {
+                TRIP_MODE.stage = 0
+                TRIP_MODE.direction = 0;
+            }
+        }
+    }
+}
 
 function normalizeAngle(angle) {
     angle = angle % (2 * Math.PI);
@@ -25,6 +84,84 @@ function normalizeAngle(angle) {
         angle = (2 * Math.PI) + angle; 
     }
     return angle;
+}
+
+function maze(x,y) {
+    var n=x*y-1;
+    if (n<0) {alert("illegal maze dimensions");return;}
+    var horiz=[]; for (var j= 0; j<x+1; j++) horiz[j]= [];
+    var verti=[]; for (var j= 0; j<y+1; j++) verti[j]= [];
+    var here= [Math.floor(Math.random()*x), Math.floor(Math.random()*y)];
+    var path= [here];
+    var unvisited= [];
+    for (var j= 0; j<x+2; j++) {
+        unvisited[j]= [];
+        for (var k= 0; k<y+1; k++)
+            unvisited[j].push(j>0 && j<x+1 && k>0 && (j != here[0]+1 || k != here[1]+1));
+    }
+    while (0<n) {
+        var potential= [[here[0]+1, here[1]], [here[0],here[1]+1],
+            [here[0]-1, here[1]], [here[0],here[1]-1]];
+        var neighbors= [];
+        for (var j= 0; j < 4; j++)
+            if (unvisited[potential[j][0]+1][potential[j][1]+1])
+                neighbors.push(potential[j]);
+        if (neighbors.length) {
+            n= n-1;
+            next= neighbors[Math.floor(Math.random()*neighbors.length)];
+            unvisited[next[0]+1][next[1]+1]= false;
+            if (next[0] == here[0])
+                horiz[next[0]][(next[1]+here[1]-1)/2]= true;
+            else 
+                verti[(next[0]+here[0]-1)/2][next[1]]= true;
+            path.push(here= next);
+        } else 
+            here= path.pop();
+    }
+    return ({x: x, y: y, horiz: horiz, verti: verti});
+}
+
+function returnMazeArray(m, w, h) {
+    var text= [];
+    for (var j= 0; j<m.x*2+1; j++) {
+        var line= [];
+        if (0 == j%2)
+            for (var k=0; k<m.y*4+1; k++)
+                if (0 == k%4) 
+                    line[k]= '+';
+                else
+                    if (j>0 && m.verti[j/2-1][Math.floor(k/4)])
+                        line[k]= ' ';
+                    else
+                        line[k]= '-';
+        else
+            for (var k=0; k<m.y*4+1; k++)
+                if (0 == k%4)
+                    if (k>0 && m.horiz[(j-1)/2][k/4-1])
+                        line[k]= ' ';
+                    else
+                        line[k]= '|';
+                else
+                    line[k]= ' ';
+        if (0 == j) line[1]= line[2]= line[3]= ' ';
+        if (m.x*2-1 == j) line[4*m.y]= ' ';
+        text.push(line.join('')+'\r\n');
+    }
+    let output_matrix = [];
+    let lines = text.join('').split("\n");
+    for (let i = 0; i < lines.length; i++) {
+        output_matrix[i] = [];
+        for (let j = 0; j < lines[0].split('').length; j++) {
+            output_matrix[i][j] = (lines[i].split('')[j] == '-' || lines[i].split('')[j] == '+') ? 1 : 0;
+            if (i == 0 || i == w - 1 || j == 0 || j == h - 1) {
+                output_matrix[i][j] = 1;
+            }
+            else if (i == 1 || j == 1 || i == w - 2 || j == h - 2) {
+                output_matrix[i][j] = 0;
+            }
+        }
+    }
+    return output_matrix;
 }
 
 function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
@@ -36,8 +173,9 @@ function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
     this.rotationAngle = Math.PI / 2;
     this.currentMap = currentMap;
     this.walkDirectionX = 1;
+    this.verticalOffset = 0;
     this.walkDirectionY = 1;
-    this.lineSize = (this.currentMap.drawSize/2) + 5;
+    this.lineSize = (this.currentMap.drawSize/2) - 5;
     this.dx = Math.cos(this.rotationAngle);
     this.dy = Math.sin(this.rotationAngle);
     this.center = {x: this.x + (this.currentMap.drawSize / 2), y: this.y + this.currentMap.drawSize / 2}
@@ -60,9 +198,9 @@ function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
             //draw wall
             let colorDecrement = (100 * d) / NUMBER_OF_RAYS;
 
-                gameContext.fillStyle =  `rgba(${(1 - (colorDecrement/100)) * 255}, 
-                                           ${(1 - (colorDecrement/100)) * 255}, 
-                                           ${(1 - (colorDecrement/100)) * 255}, 1)`;
+                gameContext.fillStyle =  `rgba(${(1 - (colorDecrement/100)) * wallColor.r}, 
+                                           ${(1 - (colorDecrement/100)) * wallColor.g}, 
+                                           ${(1 - (colorDecrement/100)) * wallColor.b}, 1)`;
 
 
             let projectionDistance = (gameCanvas.width / 2) / Math.tan(FOV / 2);
@@ -72,8 +210,8 @@ function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
 
             //console.log(wallStripHeight);
             if (type == 1) {
-                gameContext.fillRect(x, startY, 1, wallHeight/2);
-                gameContext.fillRect(x, startY, 1, -wallHeight/2);
+                gameContext.fillRect(x, startY + this.verticalOffset, 1, wallHeight/2);
+                gameContext.fillRect(x, startY + this.verticalOffset, 1, -wallHeight/2);
             } else if (type > 1) {
                 gameContext.drawImage(SPRITE_TRANSLATE[type], x, startY, wallHeight / 2, wallHeight / 2);
                 //console.log(x);
@@ -83,15 +221,15 @@ function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
     }
 
     this.drawFloor = () => {
-        for (let i = 0; i < NUMBER_OF_RAYS; i++) {
+
             let floorGradient = gameContext.createLinearGradient(x, (gameCanvas.height / 2), x, gameCanvas.height);
-            floorGradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
-            floorGradient.addColorStop(1, 'rgba(220, 200, 175, 1)');
+            //floorGradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+            floorGradient.addColorStop(0, 'rgba(220, 200, 175, 1)');
             gameContext.fillStyle = floorGradient;
-       
-            gameContext.fillRect(i, gameCanvas.height / 2, 1, gameCanvas.height / 2);
-        
-        }
+
+            gameContext.fillRect(0, (gameCanvas.height / 2) + this.verticalOffset, gameCanvas.width, (gameCanvas.height / 2) - this.verticalOffset);
+
+
     }
     this.rayCast = () => {
         mapContext.strokeStyle = 'pink'
@@ -213,7 +351,8 @@ function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
         this.walking = 0;
         this.center = {x: this.x + this.currentMap.drawSize / 2, y: this.y + this.currentMap.drawSize / 2}
     }
-    this.keyListener = window.onkeypress = (e) => {
+    this.keyListener = window.onkeydown = (e) => {
+        console.log(e.keyCode);
         switch(e.keyCode) {
             case KEYS.UP:
                 this.walkDirectionX = 1;
@@ -227,6 +366,13 @@ function Player (x, y, walkingSpeed, rotationSpeed, currentMap) {
                 this.walking = 1;
             break;
 
+            case KEYS.CAMERA_UP:
+                this.verticalOffset+= this.walkingSpeed;
+            break;
+
+            case KEYS.CAMERA_DOWN:
+                this.verticalOffset-= this.walkingSpeed;
+            break;
 
             case KEYS.CAMERA_LEFT:
                 this.rotationAngle = normalizeAngle(this.rotationAngle - this.rotationSpeed);
