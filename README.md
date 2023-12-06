@@ -1,5 +1,5 @@
 # Ray
-## pure JavaScript raycaster that leverages the HTML5 Canvas element to create a simple yet powerful 3D rendering experience. This project was developed as part of a comprehensive raycasting course.
+pure JavaScript raycaster that leverages the HTML5 Canvas element to create a simple yet powerful 3D rendering experience. This project was developed as part of a comprehensive raycasting course.
 ![ray demo](https://raw.githubusercontent.com/reonardoleis/evolunstein/master/assets/ev_demo.gif)
 
 ## Features
